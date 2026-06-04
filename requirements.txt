@@ -1,0 +1,10 @@
+flask
+flask-socketio
+flask-cors
+opencv-python
+torch
+torchvision
+deep-sort-realtime
+supabase
+python-dotenv
+werkzeug
