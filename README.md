@@ -114,3 +114,40 @@ Frontend akan berjalan di: **`http://localhost:3000`**
 Buka browser Anda dan akses **`http://localhost:3000`** untuk masuk ke antarmuka dashboard deteksi pelanggaran real-time!
 
 *(Catatan: Anda juga bisa mengakses tampilan web sederhana bawaan Flask langsung di `http://localhost:5000` jika frontend Next.js tidak dijalankan).*
+
+---
+
+## 🎮 Panduan Penggunaan (How to Use)
+
+Setelah aplikasi backend dan frontend berhasil dijalankan, Anda dapat menggunakannya dengan fitur-fitur berikut:
+
+### 1. Deteksi Pelanggaran dari File Video (Halaman Home)
+Halaman utama digunakan untuk memproses file rekaman video CCTV lab yang sudah ada:
+1. Akses halaman utama di browser: **`http://localhost:3000`**.
+2. Pada panel **Upload Video**, klik area dropzone atau seret file video (format: `MP4`, `AVI`, `MOV` dengan batas maksimal `100MB`) yang ingin dianalisis.
+3. Klik tombol **Upload & Deteksi**.
+4. Deteksi berjalan secara real-time:
+   * **Live Preview**: Menampilkan frame video yang sedang diproses lengkap dengan bounding box hijau di sekitar objek yang terdeteksi beserta ID pelacakannya (misal: `sleep ID:1`).
+   * **Detection Logs**: Menampilkan tabel log deteksi real-time. Anda dapat melihat waktu kejadian, nomor frame, nama objek/pelanggaran, dan tingkat keyakinan (confidence score).
+   * **Bukti Foto**: Klik gambar mini (thumbnail) di kolom *Gambar* pada tabel log untuk memperbesar bukti pelanggaran.
+5. **Hentikan Deteksi**: Jika ingin membatalkan proses deteksi di tengah jalan, Anda dapat mengeklik tombol **Stop** (tombol merah dengan ikon lingkaran) di sebelah tombol upload.
+6. **Ekspor Log**: Anda bisa mengeklik tombol **Export Excel** untuk mengunduh log deteksi dari sesi tersebut ke dalam file Excel `.xlsx`.
+
+### 2. Deteksi Pelanggaran dari Live Stream (Halaman Stream URL)
+Digunakan jika Anda ingin menghubungkan aplikasi langsung dengan kamera CCTV atau RTSP stream secara live:
+1. Klik menu **Stream URL** pada navigasi atas.
+2. Masukkan URL streaming video yang valid (misalnya link streaming RTSP, HTTP, atau path webcam lokal) ke kolom input yang tersedia.
+3. Klik tombol **Mulai Deteksi Stream**.
+4. Sistem Flask akan mencoba melakukan koneksi (termasuk mekanisme retry otomatis) dan memproses aliran video secara real-time. Hasil deteksi akan muncul di layar.
+
+### 3. Halaman Statistik & Ringkasan (Dashboard)
+Untuk melihat statistik visual tentang tingkat pelanggaran di laboratorium:
+1. Klik menu **Dashboard** pada navigasi atas.
+2. Anda akan disajikan metrik total pelanggaran yang terdeteksi dan visualisasi diagram persentase berdasarkan jenis pelanggaran (`sleep`, `eating`, `playing game phone`).
+
+### 4. Halaman Riwayat Pelanggaran (History)
+Digunakan untuk melihat, memfilter, dan memeriksa log pelanggaran yang telah lalu yang tersimpan di Supabase:
+1. Klik menu **History** pada navigasi atas.
+2. Gunakan filter pencarian berdasarkan **Jenis Pelanggaran** atau **Tanggal** untuk mempermudah pencarian.
+3. Anda dapat melihat gambar bukti pelanggaran yang disimpan secara permanen di Supabase Storage.
+
