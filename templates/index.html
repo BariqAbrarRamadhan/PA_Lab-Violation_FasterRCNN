@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Deteksi Real-Time - Upload Video</title>
+<link rel="icon" href="/static/R.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --primary: #0ea5e9;
+  --primary-dark: #0284c7;
+  --primary-light: #e0f2fe;
+  --accent: #06b6d4;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --bg: #f0f4f8;
+  --surface: #ffffff;
+  --surface2: #f8fafc;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --sidebar-bg: #0f172a;
+  --sidebar-text: #94a3b8;
+  --sidebar-active: #0ea5e9;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+  --shadow-lg: 0 4px 24px rgba(0,0,0,.12);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+/* TOPBAR */
+.topbar{background:var(--sidebar-bg);color:#fff;padding:0 2rem;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.topbar-brand{display:flex;align-items:center;gap:.75rem;font-weight:700;font-size:1.1rem;letter-spacing:-.01em}
+.brand-icon{width:36px;height:36px;background:var(--primary);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center}
+.brand-icon svg{width:20px;height:20px;stroke:#fff;fill:none}
+.topbar-nav{display:flex;gap:.25rem}
+.nav-pill{padding:.5rem 1.25rem;border-radius:50px;font-size:.9rem;font-weight:500;text-decoration:none;color:var(--sidebar-text);transition:all .2s;border:1px solid transparent}
+.nav-pill:hover{color:#fff;background:rgba(255,255,255,.08)}
+.nav-pill.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.topbar-badge{background:rgba(14,165,233,.15);color:var(--primary);font-size:.75rem;font-weight:600;padding:.25rem .75rem;border-radius:50px;border:1px solid rgba(14,165,233,.3)}
+/* LAYOUT */
+.layout{display:flex;flex:1;gap:0}
+.main{flex:1;padding:2rem;max-width:1200px;margin:0 auto;width:100%}
+/* CARDS */
+.card{background:var(--surface);border-radius:var(--r-xl);border:1px solid var(--border);box-shadow:var(--shadow);margin-bottom:1.5rem;overflow:hidden}
+.card-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:1rem;font-weight:600;color:var(--text);display:flex;align-items:center;gap:.6rem}
+.card-title svg{width:18px;height:18px;stroke:var(--primary);fill:none}
+.card-body{padding:1.5rem}
+/* UPLOAD AREA */
+.upload-zone{border:2px dashed var(--border);border-radius:var(--r-lg);padding:2.5rem 2rem;text-align:center;background:var(--surface2);cursor:pointer;transition:all .25s}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--primary);background:var(--primary-light)}
+.upload-zone-icon{width:52px;height:52px;margin:0 auto 1rem;background:var(--primary-light);border-radius:var(--r-lg);display:flex;align-items:center;justify-content:center}
+.upload-zone-icon svg{width:26px;height:26px;stroke:var(--primary);fill:none}
+.upload-zone-title{font-weight:600;font-size:1rem;color:var(--text);margin-bottom:.4rem}
+.upload-zone-sub{font-size:.85rem;color:var(--text-muted)}
+/* FILE TAG */
+.file-tag{display:inline-flex;align-items:center;gap:.6rem;background:var(--primary-light);border:1px solid rgba(14,165,233,.3);color:var(--primary-dark);font-size:.875rem;font-weight:500;padding:.5rem 1rem;border-radius:50px;margin-top:1rem}
+.file-tag-remove{background:none;border:none;cursor:pointer;color:var(--danger);font-size:1rem;line-height:1;display:flex;padding:0;margin-left:.25rem}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.75rem 1.75rem;border:none;border-radius:var(--r-md);font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--primary-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(14,165,233,.35)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover{background:#059669}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-sm{padding:.45rem 1rem;font-size:.82rem}
+.btn svg{width:16px;height:16px;stroke:currentColor;fill:none}
+/* VIDEO */
+.video-wrap{border-radius:var(--r-lg);overflow:hidden;background:#0f172a;position:relative;min-height:400px;display:flex;align-items:center;justify-content:center}
+.video-placeholder-inner{text-align:center;color:#475569}
+.video-placeholder-inner svg{width:64px;height:64px;stroke:#334155;fill:none;margin-bottom:1rem}
+.video-placeholder-inner p{font-size:.95rem;font-weight:500}
+#videoFrame{width:100%;display:none}
+/* TABLE */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{padding:.875rem 1.25rem;text-align:left;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);background:var(--surface2);border-bottom:2px solid var(--border)}
+td{padding:.875rem 1.25rem;border-bottom:1px solid var(--border);font-size:.875rem;color:var(--text)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--surface2)}
+.badge{display:inline-block;padding:.2rem .65rem;border-radius:50px;font-size:.75rem;font-weight:600}
+.badge-blue{background:var(--primary-light);color:var(--primary-dark)}
+.badge-green{background:#d1fae5;color:#065f46}
+.empty-row td{text-align:center;padding:3rem;color:var(--text-muted);font-style:italic}
+/* STATUS BAR */
+.status-bar{display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;background:var(--surface2);border-top:1px solid var(--border);font-size:.8rem;color:var(--text-muted)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#94a3b8}
+.status-dot.active{background:var(--success);box-shadow:0 0 0 3px rgba(16,185,129,.2)}
+/* TOAST */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--sidebar-bg);color:#fff;padding:1rem 1.25rem;border-radius:var(--r-lg);box-shadow:var(--shadow-lg);z-index:1000;display:none;max-width:360px;border-left:4px solid var(--danger);font-size:.875rem}
+.toast.show{display:flex;align-items:flex-start;gap:.75rem;animation:slideUp .3s ease}
+.toast-close{background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.1rem;margin-left:auto;padding:0}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:2000;backdrop-filter:blur(4px)}
+.modal-overlay.show{display:flex;animation:fadeIn .2s ease}
+.modal-box{background:var(--surface);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);max-width:90vw;max-height:90vh;overflow:auto;padding:1.5rem}
+.modal-box img{max-width:100%;height:auto;border-radius:var(--r-md)}
+.modal-actions{margin-top:1rem;text-align:right}
+/* ANIMATIONS */
+@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.animate-in{animation:slideUp .4s ease both}
+/* RESPONSIVE */
+@media(max-width:768px){
+  .topbar{padding:0 1rem}.topbar-badge{display:none}
+  .main{padding:1rem}
+  .nav-pill{padding:.4rem .8rem;font-size:.82rem}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></div>
+    SafeVision Lab
+  </div>
+  <nav class="topbar-nav">
+    <a href="/" class="nav-pill active">Upload Video</a>
+    <a href="/url" class="nav-pill">Upload URL</a>
+  </nav>
+  <span class="topbar-badge">Faster R-CNN</span>
+</div>
+
+<div class="layout">
+<main class="main">
+
+  <!-- Upload Card -->
+  <div class="card animate-in">
+    <div class="card-header">
+      <span class="card-title">
+        <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+        Upload Video
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="upload-zone" id="upload-zone">
+        <label for="video-upload" style="cursor:pointer;display:block">
+          <div class="upload-zone-icon">
+            <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          </div>
+          <div class="upload-zone-title">Klik atau seret file video ke sini</div>
+          <div class="upload-zone-sub">Format: MP4, AVI, MOV &bull; Maks. 100MB</div>
+        </label>
+        <input type="file" id="video-upload" accept="video/*" hidden/>
+      </div>
+      <div id="file-info" style="display:none">
+        <div class="file-tag">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          <span id="file-name"></span>
+          <button class="file-tag-remove" id="remove-btn">&#10005;</button>
+        </div>
+      </div>
+      <div style="margin-top:1.25rem">
+        <button class="btn btn-primary" id="upload-btn" disabled>
+          <svg viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Upload & Deteksi
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video Card -->
+  <div class="card animate-in" style="animation-delay:.1s">
+    <div class="card-header">
+      <span class="card-title">
+        <svg viewBox="0 0 24 24" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+        Live Preview
+      </span>
+      <div class="status-bar" style="margin:0;padding:0;border:none;background:none">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text" style="font-size:.8rem;color:var(--text-muted)">Menunggu video...</span>
+      </div>
+    </div>
+    <div class="video-wrap">
+      <div class="video-placeholder-inner" id="video-placeholder">
+        <svg viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        <p>Preview video akan muncul di sini</p>
+      </div>
+      <img id="videoFrame" style="display:none;width:100%"/>
+    </div>
+  </div>
+
+  <!-- Detection Logs Card -->
+  <div class="card animate-in" style="animation-delay:.2s">
+    <div class="card-header">
+      <span class="card-title">
+        <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Detection Logs
+      </span>
+      <button onclick="exportToExcel()" class="btn btn-success btn-sm">
+        <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Export Excel
+      </button>
+    </div>
+    <div class="tbl-wrap">
+      <table class="logs-table">
+        <thead>
+          <tr>
+            <th>Frame Time</th>
+            <th>Frame #</th>
+            <th>Objek</th>
+            <th>Confidence</th>
+            <th>Gambar</th>
+          </tr>
+        </thead>
+        <tbody id="detectionLogs">
+          <tr class="empty-row" id="empty-state"><td colspan="5">Belum ada deteksi. Upload video untuk memulai.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- Toast -->
+<div id="violationToast" class="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="20" height="20" style="flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+  <span id="violationMessage"></span>
+  <button class="toast-close" onclick="hideToast()">&#10005;</button>
+</div>
+
+<!-- Modal -->
+<div id="imageModal" class="modal-overlay">
+  <div class="modal-box">
+    <img id="modalImage" src=""/>
+    <div class="modal-actions">
+      <button onclick="closeImageModal()" class="btn btn-danger btn-sm">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const socket = io("http://localhost:5000");
+const videoUpload = document.getElementById("video-upload");
+const uploadBtn = document.getElementById("upload-btn");
+const fileInfo = document.getElementById("file-info");
+const fileName = document.getElementById("file-name");
+const removeBtn = document.getElementById("remove-btn");
+const videoPlaceholder = document.getElementById("video-placeholder");
+const videoFrame = document.getElementById("videoFrame");
+const emptyState = document.getElementById("empty-state");
+const statusDot = document.getElementById("status-dot");
+const statusText = document.getElementById("status-text");
+
+videoUpload.addEventListener("change", e => {
+  const file = e.target.files[0];
+  if(file){fileName.textContent=file.name;fileInfo.style.display="block";uploadBtn.disabled=false;}
+});
+
+removeBtn.addEventListener("click", () => {
+  videoUpload.value="";fileInfo.style.display="none";uploadBtn.disabled=true;
+  videoFrame.style.display="none";videoPlaceholder.style.display="flex";
+  statusDot.classList.remove("active");statusText.textContent="Menunggu video...";
+});
+
+uploadBtn.addEventListener("click", () => {
+  const file = videoUpload.files[0];
+  if(!file){alert("Pilih video terlebih dahulu");return;}
+  const fd = new FormData();
+  fd.append("video", file);
+  uploadBtn.disabled=true;uploadBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Mengunggah...';
+  fetch("http://localhost:5000/upload_video",{method:"POST",body:fd})
+    .then(r=>r.json()).then(d=>{
+      videoPlaceholder.style.display="none";videoFrame.style.display="block";
+      statusDot.classList.add("active");statusText.textContent="Deteksi berjalan...";
+      uploadBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg> Upload & Deteksi';
+      uploadBtn.disabled=false;
+    }).catch(err=>{
+      alert("Gagal mengunggah video");
+      uploadBtn.innerHTML='Upload & Deteksi';uploadBtn.disabled=false;
+    });
+});
+
+const uploadZone = document.getElementById("upload-zone");
+uploadZone.addEventListener("dragover", e=>{e.preventDefault();uploadZone.classList.add("dragover");});
+uploadZone.addEventListener("dragleave", ()=>uploadZone.classList.remove("dragover"));
+uploadZone.addEventListener("drop", e=>{
+  e.preventDefault();uploadZone.classList.remove("dragover");
+  const files = e.dataTransfer.files;
+  if(files.length>0&&files[0].type.startsWith("video/")){
+    videoUpload.files=files;fileName.textContent=files[0].name;fileInfo.style.display="block";uploadBtn.disabled=false;
+  }
+});
+
+socket.on("video_frame", d=>{videoFrame.src=`data:image/jpeg;base64,${d.frame}`;});
+socket.on("detection_log", d=>addLog(d));
+socket.on("video_done", d=>{statusDot.classList.remove("active");statusText.textContent="Deteksi selesai";showToast(d.message);});
+socket.on("violation_alert", d=>{showToast(`Pelanggaran: ${d.message} frame ke-${d.frame_number}`);addLog(d);});
+
+function addLog(data){
+  if(emptyState)emptyState.style.display="none";
+  const row=document.createElement("tr");
+  const conf = data.confidence ? (data.confidence*100).toFixed(1)+'%' : "N/A";
+  row.innerHTML=`<td><span class="badge badge-blue">${data.frame_time||"N/A"}</span></td><td>${data.frame_number||"N/A"}</td><td><strong>${data.object_name||"Unknown"}</strong></td><td><span class="badge badge-green">${conf}</span></td><td id="ic-${data.frame_number}"></td>`;
+  document.getElementById("detectionLogs").appendChild(row);
+  const cell=row.querySelector(`#ic-${data.frame_number}`);
+  if(data.image_path){
+    const img=document.createElement("img");
+    img.src=`http://localhost:5000/${data.image_path}`;img.width=90;img.height=70;
+    img.style.cssText="cursor:pointer;border-radius:6px;border:2px solid var(--border);transition:transform .2s";
+    img.onmouseenter=()=>img.style.transform="scale(1.05)";
+    img.onmouseleave=()=>img.style.transform="scale(1)";
+    img.onclick=()=>openModal(img.src);cell.appendChild(img);
+  }else{cell.innerHTML='<span style="color:var(--text-muted);font-size:.8rem">—</span>';}
+}
+
+function showToast(msg){
+  document.getElementById("violationMessage").textContent=msg;
+  const t=document.getElementById("violationToast");t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),6000);
+}
+function hideToast(){document.getElementById("violationToast").classList.remove("show");}
+function openModal(src){document.getElementById("modalImage").src=src;document.getElementById("imageModal").classList.add("show");}
+function closeImageModal(){document.getElementById("imageModal").classList.remove("show");}
+
+function exportToExcel(){
+  const table=document.querySelector(".logs-table");
+  const rows=Array.from(table.rows).map(r=>Array.from(r.cells).map(c=>c.innerText));
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Detection Logs");
+  XLSX.writeFile(wb,"detection_logs.xlsx");
+}
+</script>
+</body>
+</html>

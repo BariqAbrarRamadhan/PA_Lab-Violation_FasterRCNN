@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: #f0f4f8;
+  color: #0f172a;
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.anim-in { animation: fadeInUp 0.4s ease-out both; }
+.anim-in-1 { animation: fadeInUp 0.4s ease-out 0.08s both; }
+.anim-in-2 { animation: fadeInUp 0.4s ease-out 0.16s both; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
