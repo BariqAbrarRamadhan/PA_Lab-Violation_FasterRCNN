@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# stray lockfile copies (mis. pnpm-lock.yaml.123456)
+pnpm-lock.yaml.*

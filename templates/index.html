@@ -127,7 +127,8 @@ tbody tr:hover td{background:var(--surface2)}
   </div>
   <nav class="topbar-nav">
     <a href="/" class="nav-pill active">Upload Video</a>
-    <a href="/url" class="nav-pill">Upload URL</a>
+    <a href="/url" class="nav-pill">Stream URL</a>
+    <a href="/history" class="nav-pill">Riwayat</a>
   </nav>
   <span class="topbar-badge">Faster R-CNN</span>
 </div>
@@ -242,7 +243,7 @@ tbody tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
-const socket = io("http://localhost:5000");
+const socket = io();
 const videoUpload = document.getElementById("video-upload");
 const uploadBtn = document.getElementById("upload-btn");
 const fileInfo = document.getElementById("file-info");
@@ -271,7 +272,7 @@ uploadBtn.addEventListener("click", () => {
   const fd = new FormData();
   fd.append("video", file);
   uploadBtn.disabled=true;uploadBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Mengunggah...';
-  fetch("http://localhost:5000/upload_video",{method:"POST",body:fd})
+  fetch("/upload_video",{method:"POST",body:fd})
     .then(r=>r.json()).then(d=>{
       videoPlaceholder.style.display="none";videoFrame.style.display="block";
       statusDot.classList.add("active");statusText.textContent="Deteksi berjalan...";
@@ -308,7 +309,7 @@ function addLog(data){
   const cell=row.querySelector(`#ic-${data.frame_number}`);
   if(data.image_path){
     const img=document.createElement("img");
-    img.src=`http://localhost:5000/${data.image_path}`;img.width=90;img.height=70;
+    img.src=data.image_path.startsWith('http') ? data.image_path : data.image_path;img.width=90;img.height=70;
     img.style.cssText="cursor:pointer;border-radius:6px;border:2px solid var(--border);transition:transform .2s";
     img.onmouseenter=()=>img.style.transform="scale(1.05)";
     img.onmouseleave=()=>img.style.transform="scale(1)";

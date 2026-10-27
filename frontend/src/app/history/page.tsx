@@ -37,7 +37,7 @@ export default function HistoryPage() {
       if (objectFilter) params.append("object_name", objectFilter);
       if (dateFilter) params.append("date", dateFilter);
 
-      const res = await fetch(`http://localhost:5000/api/detections?${params}`);
+      const res = await fetch(`/api/detections?${params}`);
       const data = await res.json();
       setDetections(data.data || []);
       setTotalCount(data.count || 0);

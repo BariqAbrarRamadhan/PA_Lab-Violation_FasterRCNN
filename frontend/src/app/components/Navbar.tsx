@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Video, Wifi, WifiOff, BarChart3, Clock } from "lucide-react";
+import { Video, Wifi, WifiOff } from "lucide-react";
 
 interface NavbarProps {
   isConnected: boolean;
@@ -13,9 +13,8 @@ export default function Navbar({ isConnected }: NavbarProps) {
 
   const navLinks = [
     { href: "/", label: "Upload Video" },
-    { href: "/url", label: "Upload URL" },
-    // { href: "/history", label: "Riwayat", icon: Clock },
-    // { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+    { href: "/url", label: "Stream URL" },
+    { href: "/history", label: "Riwayat" },
   ];
 
   return (
@@ -41,7 +40,6 @@ export default function Navbar({ isConnected }: NavbarProps) {
                 : "text-slate-400 hover:text-white hover:bg-white/10"
             }`}
           >
-            {link.icon && <link.icon size={13} />}
             <span className="hidden sm:inline">{link.label}</span>
           </Link>
         ))}

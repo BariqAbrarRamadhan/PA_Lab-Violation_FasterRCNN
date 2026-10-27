@@ -10,10 +10,9 @@ __pycache__/
 *.pt
 *.pth
 
-# Video uploads & processed files
-uploads/*.mp4
-uploads/*.avi
-uploads/*.mov
+# Runtime uploads (folder tetap ada lewat .gitkeep)
+uploads/*
+!uploads/.gitkeep
 processed_videos/
 
 # Generated violation images
@@ -35,3 +34,18 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Testing & Logs
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+*.csv
+
+# Next.js / Frontend specific envs
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+mediamtx/

@@ -3,11 +3,13 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Deteksi Real-Time - Upload URL</title>
+<title>Deteksi Live Stream - SafeVision Lab</title>
+<meta name="description" content="Deteksi pelanggaran laboratorium secara real-time dari live stream RTSP/CCTV menggunakan Faster R-CNN."/>
 <link rel="icon" href="/static/R.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root {
   --primary: #0ea5e9;
@@ -33,6 +35,8 @@
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+
+/* TOPBAR */
 .topbar{background:var(--sidebar-bg);color:#fff;padding:0 2rem;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .topbar-brand{display:flex;align-items:center;gap:.75rem;font-weight:700;font-size:1.1rem;letter-spacing:-.01em}
 .brand-icon{width:36px;height:36px;background:var(--primary);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center}
@@ -42,42 +46,81 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .nav-pill:hover{color:#fff;background:rgba(255,255,255,.08)}
 .nav-pill.active{background:var(--primary);color:#fff;border-color:var(--primary)}
 .topbar-badge{background:rgba(14,165,233,.15);color:var(--primary);font-size:.75rem;font-weight:600;padding:.25rem .75rem;border-radius:50px;border:1px solid rgba(14,165,233,.3)}
+
+/* LAYOUT */
 .layout{display:flex;flex:1;gap:0}
-.main{flex:1;padding:2rem;max-width:1200px;margin:0 auto;width:100%}
+.main{flex:1;padding:2rem;max-width:1280px;margin:0 auto;width:100%}
+
+/* CARDS */
 .card{background:var(--surface);border-radius:var(--r-xl);border:1px solid var(--border);box-shadow:var(--shadow);margin-bottom:1.5rem;overflow:hidden}
-.card-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
 .card-title{font-size:1rem;font-weight:600;color:var(--text);display:flex;align-items:center;gap:.6rem}
 .card-title svg{width:18px;height:18px;stroke:var(--primary);fill:none}
 .card-body{padding:1.5rem}
+
 /* URL INPUT */
 .url-section{margin-bottom:1.25rem}
 .url-label{display:block;font-size:.875rem;font-weight:500;color:var(--text);margin-bottom:.5rem}
 .url-group{display:flex;gap:.5rem}
-.url-input{flex:1;padding:.75rem 1rem;border:2px solid var(--border);border-radius:var(--r-md);font-size:.95rem;background:var(--surface2);color:var(--text);transition:all .2s;outline:none}
+.url-input{flex:1;padding:.75rem 1rem;border:2px solid var(--border);border-radius:var(--r-md);font-size:.95rem;background:var(--surface2);color:var(--text);transition:all .2s;outline:none;font-family:monospace}
 .url-input:focus{border-color:var(--primary);background:#fff;box-shadow:0 0 0 3px rgba(14,165,233,.12)}
-.url-input::placeholder{color:var(--text-muted)}
+.url-input::placeholder{color:var(--text-muted);font-family:'Inter',sans-serif}
+.url-input.error{border-color:var(--danger);box-shadow:0 0 0 3px rgba(239,68,68,.12)}
 .paste-btn{width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--surface2);border:2px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:all .2s;flex-shrink:0}
 .paste-btn:hover{background:var(--primary);border-color:var(--primary)}
 .paste-btn:hover svg{stroke:#fff}
 .paste-btn svg{width:18px;height:18px;stroke:var(--text-muted);fill:none;transition:stroke .2s}
+.url-error{font-size:.8rem;color:var(--danger);margin-top:.4rem;display:none}
 .url-hint{font-size:.8rem;color:var(--text-muted);margin-top:.5rem;display:flex;align-items:center;gap:.4rem}
 .url-hint svg{width:14px;height:14px;stroke:var(--text-muted);fill:none}
-/* URL EXAMPLES */
+
+/* CHIPS */
 .url-chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
-.url-chip{padding:.3rem .75rem;background:var(--surface2);border:1px solid var(--border);border-radius:50px;font-size:.78rem;color:var(--text-muted);cursor:pointer;transition:all .2s}
+.url-chip{padding:.3rem .75rem;background:var(--surface2);border:1px solid var(--border);border-radius:50px;font-size:.78rem;color:var(--text-muted);cursor:pointer;transition:all .2s;font-family:monospace}
 .url-chip:hover{background:var(--primary-light);border-color:var(--primary);color:var(--primary-dark)}
+
+/* BUTTONS */
 .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.75rem 1.75rem;border:none;border-radius:var(--r-md);font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s}
 .btn-primary{background:var(--primary);color:#fff}
 .btn-primary:hover:not(:disabled){background:var(--primary-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(14,165,233,.35)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed}
 .btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover:not(:disabled){background:#dc2626;transform:translateY(-1px)}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover{background:#059669}
+.btn-outline{background:transparent;color:var(--text-muted);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
 .btn-sm{padding:.45rem 1rem;font-size:.82rem}
 .btn svg{width:16px;height:16px;stroke:currentColor;fill:none}
+.action-row{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.25rem;align-items:center}
+
+/* VIDEO */
 .video-wrap{border-radius:var(--r-lg);overflow:hidden;background:#0f172a;position:relative;min-height:400px;display:flex;align-items:center;justify-content:center}
 .video-placeholder-inner{text-align:center;color:#475569}
 .video-placeholder-inner svg{width:64px;height:64px;stroke:#334155;fill:none;margin-bottom:1rem}
 .video-placeholder-inner p{font-size:.95rem;font-weight:500}
-#videoFrame{width:100%;display:none}
+#videoFrame{width:100%;display:none;border-radius:var(--r-lg)}
+
+/* STATUS INDICATOR */
+.status-row{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--text-muted)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0}
+.status-dot.active{background:var(--success);box-shadow:0 0 0 3px rgba(16,185,129,.2);animation:pulse-dot 2s ease infinite}
+.status-dot.connecting{background:var(--warning);animation:pulse-dot 1s ease infinite}
+.status-dot.error{background:var(--danger)}
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 0 3px rgba(16,185,129,.2)}50%{box-shadow:0 0 0 6px rgba(16,185,129,.1)}}
+
+/* PERFORMANCE MONITOR */
+.perf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;padding:1.5rem}
+.perf-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-lg);padding:1rem;text-align:center;transition:all .3s}
+.perf-card.warn{border-color:var(--warning);background:rgba(245,158,11,.06)}
+.perf-card.danger{border-color:var(--danger);background:rgba(239,68,68,.06)}
+.perf-label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:.4rem}
+.perf-value{font-size:1.5rem;font-weight:700;color:var(--text);line-height:1.1;font-variant-numeric:tabular-nums}
+.perf-unit{font-size:.8rem;font-weight:500;color:var(--text-muted);margin-top:.2rem}
+.perf-bar{height:4px;border-radius:2px;background:var(--border);margin-top:.75rem;overflow:hidden}
+.perf-bar-fill{height:100%;border-radius:2px;background:var(--success);transition:width .5s ease,background .3s}
+
+/* TABLE */
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}
 th{padding:.875rem 1.25rem;text-align:left;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);background:var(--surface2);border-bottom:2px solid var(--border)}
@@ -87,23 +130,41 @@ tbody tr:hover td{background:var(--surface2)}
 .badge{display:inline-block;padding:.2rem .65rem;border-radius:50px;font-size:.75rem;font-weight:600}
 .badge-blue{background:var(--primary-light);color:var(--primary-dark)}
 .badge-green{background:#d1fae5;color:#065f46}
+.badge-red{background:#fee2e2;color:#991b1b}
 .empty-row td{text-align:center;padding:3rem;color:var(--text-muted);font-style:italic}
-.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--sidebar-bg);color:#fff;padding:1rem 1.25rem;border-radius:var(--r-lg);box-shadow:var(--shadow-lg);z-index:1000;display:none;max-width:360px;border-left:4px solid var(--danger);font-size:.875rem}
+
+/* TOAST */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--sidebar-bg);color:#fff;padding:1rem 1.25rem;border-radius:var(--r-lg);box-shadow:var(--shadow-lg);z-index:1000;display:none;max-width:380px;border-left:4px solid var(--danger);font-size:.875rem}
 .toast.show{display:flex;align-items:flex-start;gap:.75rem;animation:slideUp .3s ease}
 .toast-close{background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.1rem;margin-left:auto;padding:0}
+
+/* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:2000;backdrop-filter:blur(4px)}
 .modal-overlay.show{display:flex;animation:fadeIn .2s ease}
 .modal-box{background:var(--surface);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);max-width:90vw;max-height:90vh;overflow:auto;padding:1.5rem}
 .modal-box img{max-width:100%;height:auto;border-radius:var(--r-md)}
 .modal-actions{margin-top:1rem;text-align:right}
+
+/* LOG ACTIONS */
+.log-actions{display:flex;gap:.5rem;align-items:center}
+
 @keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .animate-in{animation:slideUp .4s ease both}
+
+/* INFO BANNER */
+.info-banner{background:linear-gradient(135deg,rgba(14,165,233,.08),rgba(6,182,212,.08));border:1px solid rgba(14,165,233,.2);border-radius:var(--r-lg);padding:1rem 1.25rem;display:flex;gap:.75rem;align-items:flex-start;margin-bottom:1.5rem}
+.info-banner svg{width:18px;height:18px;stroke:var(--primary);fill:none;flex-shrink:0;margin-top:1px}
+.info-banner-text{font-size:.85rem;color:var(--text);line-height:1.5}
+.info-banner-text strong{color:var(--primary-dark)}
+
 @media(max-width:768px){
   .topbar{padding:0 1rem}.topbar-badge{display:none}
   .main{padding:1rem}
   .nav-pill{padding:.4rem .8rem;font-size:.82rem}
   .url-group{flex-wrap:wrap}
+  .perf-grid{grid-template-columns:repeat(2,1fr)}
+  .action-row{flex-direction:column;align-items:flex-start}
 }
 </style>
 </head>
@@ -115,7 +176,8 @@ tbody tr:hover td{background:var(--surface2)}
   </div>
   <nav class="topbar-nav">
     <a href="/" class="nav-pill">Upload Video</a>
-    <a href="/url" class="nav-pill active">Upload URL</a>
+    <a href="/url" class="nav-pill active">Stream URL</a>
+    <a href="/history" class="nav-pill">Riwayat</a>
   </nav>
   <span class="topbar-badge">Faster R-CNN</span>
 </div>
@@ -123,58 +185,144 @@ tbody tr:hover td{background:var(--surface2)}
 <div class="layout">
 <main class="main">
 
+  <!-- Info Banner -->
+  <div class="info-banner animate-in">
+    <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01"/></svg>
+    <div class="info-banner-text">
+      Untuk mengakses dari perangkat lain di <strong>Wifi Kampus</strong>, gunakan alamat
+      <strong id="lan-url">http://&lt;IP-Server&gt;:5000/url</strong>.
+      Pastikan kamera CCTV dan server terhubung ke jaringan yang sama.
+    </div>
+  </div>
+
   <!-- URL Input Card -->
   <div class="card animate-in">
     <div class="card-header">
       <span class="card-title">
         <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-        Stream URL
+        Sumber Stream
       </span>
+      <div class="status-row">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">Menunggu URL...</span>
+      </div>
     </div>
     <div class="card-body">
       <div class="url-section">
-        <label for="streamingUrl" class="url-label">URL Video / Stream</label>
+        <label for="streamingUrl" class="url-label">URL Video / RTSP Stream</label>
         <div class="url-group">
-          <input type="url" id="streamingUrl" class="url-input" placeholder="https://example.com/video.mp4 atau rtsp://..."/>
+          <input type="text" id="streamingUrl" class="url-input"
+            placeholder="rtsp://user:pass@ip-kamera/stream atau https://example.com/video.mp4"/>
           <button class="paste-btn" id="paste-btn" title="Tempel dari clipboard">
             <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
           </button>
         </div>
+        <div class="url-error" id="url-error">⚠ Format URL tidak valid. Gunakan rtsp://, http://, atau https://</div>
         <p class="url-hint">
           <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01"/></svg>
-          Mendukung: MP4, AVI, MOV, YouTube, Vimeo, RTSP stream
+          Mendukung: RTSP (kamera CCTV/ZoneMinder), HTTP/HTTPS video stream
         </p>
         <div class="url-chips">
-          <span class="url-chip" onclick="fillUrl('rtsp://')">RTSP Stream</span>
-          <span class="url-chip" onclick="fillUrl('http://')">HTTP Video</span>
-          <span class="url-chip" onclick="fillUrl('https://')">HTTPS Video</span>
+          <span class="url-chip" onclick="fillUrl('rtsp://')">📹 RTSP Stream</span>
+          <span class="url-chip" onclick="fillUrl('rtsp://admin:password@')">🔐 RTSP + Auth</span>
+          <span class="url-chip" onclick="fillUrl('http://')">🌐 HTTP Video</span>
+          <span class="url-chip" onclick="fillUrl('https://')">🔒 HTTPS Video</span>
         </div>
       </div>
-      <button class="btn btn-primary" id="submit-url-btn">
-        <svg viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-        Mulai Deteksi
-      </button>
+      <div class="action-row">
+        <button class="btn btn-primary" id="submit-url-btn">
+          <svg viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg>
+          Mulai Deteksi
+        </button>
+        <button class="btn btn-danger" id="stop-btn" style="display:none">
+          <svg viewBox="0 0 24 24" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+          Stop Stream
+        </button>
+        <button class="btn btn-outline btn-sm" id="export-csv-btn" style="display:none" onclick="exportPerfCSV()">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Export Perf CSV
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- Video Card -->
-  <div class="card animate-in" style="animation-delay:.1s">
-    <div class="card-header">
-      <span class="card-title">
-        <svg viewBox="0 0 24 24" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
-        Live Preview
-      </span>
-      <div style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--text-muted)">
-        <div style="width:8px;height:8px;border-radius:50%;background:#94a3b8" id="status-dot"></div>
-        <span id="status-text">Menunggu URL...</span>
+  <!-- Live Preview + Performance Monitor (2 column on desktop) -->
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:1.5rem;margin-bottom:1.5rem" id="main-grid">
+
+    <!-- Live Preview Card -->
+    <div class="card animate-in" style="animation-delay:.1s;margin-bottom:0">
+      <div class="card-header">
+        <span class="card-title">
+          <svg viewBox="0 0 24 24" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+          Live Preview
+        </span>
+        <span id="fps-badge" style="font-size:.78rem;color:var(--text-muted);font-variant-numeric:tabular-nums">— fps</span>
+      </div>
+      <div class="video-wrap" id="video-wrap">
+        <div class="video-placeholder-inner" id="video-placeholder">
+          <svg viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          <p>Preview stream akan muncul di sini</p>
+        </div>
+        <!-- MJPEG stream — jauh lebih efisien dari base64 SocketIO -->
+        <img id="videoFrame" src="" alt="Live Stream" style="display:none;width:100%"/>
       </div>
     </div>
-    <div class="video-wrap">
-      <div class="video-placeholder-inner" id="video-placeholder">
-        <svg viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-        <p>Preview stream akan muncul di sini</p>
+
+    <!-- Performance Monitor Card -->
+    <div class="card animate-in" style="animation-delay:.15s;margin-bottom:0" id="perf-card">
+      <div class="card-header">
+        <span class="card-title">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Performance Monitor
+        </span>
+        <span id="uptime-badge" style="font-size:.78rem;color:var(--text-muted);font-variant-numeric:tabular-nums">00:00:00</span>
       </div>
-      <img id="videoFrame" style="display:none;width:100%"/>
+      <div class="perf-grid" id="perf-grid">
+        <!-- FPS -->
+        <div class="perf-card" id="pc-fps">
+          <div class="perf-label">Actual FPS</div>
+          <div class="perf-value" id="pm-fps">—</div>
+          <div class="perf-unit">frame/s</div>
+          <div class="perf-bar"><div class="perf-bar-fill" id="pb-fps" style="width:0%"></div></div>
+        </div>
+        <!-- Inference -->
+        <div class="perf-card" id="pc-inf">
+          <div class="perf-label">Inference</div>
+          <div class="perf-value" id="pm-inf">—</div>
+          <div class="perf-unit">ms / frame</div>
+          <div class="perf-bar"><div class="perf-bar-fill" id="pb-inf" style="width:0%"></div></div>
+        </div>
+        <!-- CPU -->
+        <div class="perf-card" id="pc-cpu">
+          <div class="perf-label">CPU Usage</div>
+          <div class="perf-value" id="pm-cpu">—</div>
+          <div class="perf-unit">persen</div>
+          <div class="perf-bar"><div class="perf-bar-fill" id="pb-cpu" style="width:0%"></div></div>
+        </div>
+        <!-- RAM -->
+        <div class="perf-card" id="pc-ram">
+          <div class="perf-label">RAM Used</div>
+          <div class="perf-value" id="pm-ram">—</div>
+          <div class="perf-unit">MB</div>
+          <div class="perf-bar"><div class="perf-bar-fill" id="pb-ram" style="width:0%"></div></div>
+        </div>
+        <!-- GPU -->
+        <div class="perf-card" id="pc-gpu">
+          <div class="perf-label">GPU Usage</div>
+          <div class="perf-value" id="pm-gpu">—</div>
+          <div class="perf-unit">persen</div>
+          <div class="perf-bar"><div class="perf-bar-fill" id="pb-gpu" style="width:0%"></div></div>
+        </div>
+        <!-- Frames Processed -->
+        <div class="perf-card" id="pc-frm">
+          <div class="perf-label">Frames</div>
+          <div class="perf-value" id="pm-frm">—</div>
+          <div class="perf-unit">diproses</div>
+        </div>
+      </div>
+      <div style="padding:.75rem 1.5rem 1.25rem;font-size:.78rem;color:var(--text-muted);border-top:1px solid var(--border)">
+        Metrik dicatat ke CSV setiap detik untuk analisis beban server.
+      </div>
     </div>
   </div>
 
@@ -185,20 +333,28 @@ tbody tr:hover td{background:var(--surface2)}
         <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
         Detection Logs
       </span>
+      <div class="log-actions">
+        <span id="detection-count-badge" style="font-size:.78rem;color:var(--text-muted)">0 deteksi</span>
+        <button onclick="exportToExcel()" class="btn btn-success btn-sm">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Export Excel
+        </button>
+      </div>
     </div>
     <div class="tbl-wrap">
-      <table>
+      <table class="logs-table">
         <thead>
           <tr>
-            <th>Frame Time</th>
+            <th>Waktu</th>
             <th>Frame #</th>
-            <th>Objek</th>
+            <th>Pelanggaran</th>
             <th>Confidence</th>
+            <th>Tracking ID</th>
             <th>Gambar</th>
           </tr>
         </thead>
         <tbody id="detectionLogs">
-          <tr class="empty-row" id="empty-state"><td colspan="5">Belum ada deteksi. Masukkan URL video untuk memulai.</td></tr>
+          <tr class="empty-row" id="empty-state"><td colspan="6">Belum ada deteksi. Masukkan URL stream untuk memulai.</td></tr>
         </tbody>
       </table>
     </div>
@@ -214,10 +370,10 @@ tbody tr:hover td{background:var(--surface2)}
   <button class="toast-close" onclick="hideToast()">&#10005;</button>
 </div>
 
-<!-- Modal -->
+<!-- Modal gambar -->
 <div id="imageModal" class="modal-overlay">
   <div class="modal-box">
-    <img id="modalImage" src=""/>
+    <img id="modalImage" src="" alt="Violation capture"/>
     <div class="modal-actions">
       <button onclick="closeImageModal()" class="btn btn-danger btn-sm">Tutup</button>
     </div>
@@ -225,72 +381,346 @@ tbody tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
-const socket = io("http://localhost:5000");
-const streamingUrlInput = document.getElementById("streamingUrl");
-const pasteBtn = document.getElementById("paste-btn");
-const submitUrlBtn = document.getElementById("submit-url-btn");
-const videoPlaceholder = document.getElementById("video-placeholder");
-const videoFrame = document.getElementById("videoFrame");
-const emptyState = document.getElementById("empty-state");
-const statusDot = document.getElementById("status-dot");
-const statusText = document.getElementById("status-text");
+// ============================================================
+// Socket.IO: gunakan URL relatif agar bisa diakses dari LAN
+// ============================================================
+const socket = io();
 
-pasteBtn.addEventListener("click", async () => {
+// ============================================================
+// Tampilkan LAN URL di banner
+// ============================================================
+document.getElementById('lan-url').textContent =
+  `${window.location.protocol}//${window.location.hostname}:${window.location.port || 5000}/url`;
+
+// ============================================================
+// DOM refs
+// ============================================================
+const streamingUrlInput = document.getElementById('streamingUrl');
+const pasteBtn          = document.getElementById('paste-btn');
+const submitUrlBtn      = document.getElementById('submit-url-btn');
+const stopBtn           = document.getElementById('stop-btn');
+const exportCsvBtn      = document.getElementById('export-csv-btn');
+const videoPlaceholder  = document.getElementById('video-placeholder');
+const videoFrame        = document.getElementById('videoFrame');
+const emptyState        = document.getElementById('empty-state');
+const statusDot         = document.getElementById('status-dot');
+const statusText        = document.getElementById('status-text');
+const fpsBadge          = document.getElementById('fps-badge');
+const uptimeBadge       = document.getElementById('uptime-badge');
+const detCountBadge     = document.getElementById('detection-count-badge');
+
+let detectionCount = 0;
+let streamActive   = false;
+
+// ============================================================
+// Paste button
+// ============================================================
+pasteBtn.addEventListener('click', async () => {
   try { streamingUrlInput.value = await navigator.clipboard.readText(); }
-  catch(e) { console.error("Clipboard error:", e); }
+  catch(e) { console.error('Clipboard error:', e); }
 });
 
-submitUrlBtn.addEventListener("click", () => {
+// ============================================================
+// URL Validation
+// ============================================================
+function validateUrl(url) {
+  if (!url) return false;
+  return /^(rtsp|rtsps|http|https):\/\/.+/i.test(url.trim());
+}
+
+streamingUrlInput.addEventListener('input', () => {
+  const urlErr = document.getElementById('url-error');
+  if (streamingUrlInput.value && !validateUrl(streamingUrlInput.value)) {
+    streamingUrlInput.classList.add('error');
+    urlErr.style.display = 'block';
+  } else {
+    streamingUrlInput.classList.remove('error');
+    urlErr.style.display = 'none';
+  }
+});
+
+// ============================================================
+// Start stream
+// ============================================================
+submitUrlBtn.addEventListener('click', () => {
   const stream_url = streamingUrlInput.value.trim();
-  if(!stream_url){ alert("Masukkan URL yang valid"); return; }
-  submitUrlBtn.disabled=true;
-  submitUrlBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Memproses...';
-  fetch("http://localhost:5000/detect_from_stream",{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({stream_url})
-  }).then(r=>r.json()).then(d=>{
-    videoPlaceholder.style.display="none";videoFrame.style.display="block";
-    statusDot.style.background="#10b981";statusDot.style.boxShadow="0 0 0 3px rgba(16,185,129,.2)";
-    statusText.textContent="Stream aktif...";
-    submitUrlBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg> Mulai Deteksi';
-    submitUrlBtn.disabled=false;
-  }).catch(e=>{
-    alert("Gagal memproses stream");
-    submitUrlBtn.innerHTML='Mulai Deteksi';submitUrlBtn.disabled=false;
+
+  if (!stream_url) {
+    alert('Masukkan URL stream terlebih dahulu.');
+    return;
+  }
+  if (!validateUrl(stream_url)) {
+    alert('Format URL tidak valid. Gunakan rtsp://, http://, atau https://');
+    return;
+  }
+
+  setLoadingState(true);
+
+  fetch('/detect_from_stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stream_url })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.error) throw new Error(d.error);
+    onStreamStarted(stream_url);
+  })
+  .catch(e => {
+    alert('Gagal memulai stream: ' + e.message);
+    setLoadingState(false);
   });
 });
 
-function fillUrl(prefix){ streamingUrlInput.value = prefix; streamingUrlInput.focus(); }
+// ============================================================
+// Stop stream
+// ============================================================
+stopBtn.addEventListener('click', () => {
+  fetch('/stop_stream', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      console.log('[Stop]', d.message);
+      onStreamStopped();
+    })
+    .catch(e => console.error('Error stop stream:', e));
+});
 
-socket.on("video_frame", d=>{videoFrame.src=`data:image/jpeg;base64,${d.frame}`;});
-socket.on("detection_log", d=>addLog(d));
-socket.on("violation_alert", d=>{showToast(`Pelanggaran: ${d.message} frame ke-${d.frame_number}`);addLog(d);});
-
-function addLog(data){
-  if(emptyState)emptyState.style.display="none";
-  const row=document.createElement("tr");
-  const conf = data.confidence ? (data.confidence*100).toFixed(1)+'%' : "N/A";
-  row.innerHTML=`<td><span class="badge badge-blue">${data.frame_time||"N/A"}</span></td><td>${data.frame_number||"N/A"}</td><td><strong>${data.object_name||"Unknown"}</strong></td><td><span class="badge badge-green">${conf}</span></td><td id="ic-${data.frame_number}"></td>`;
-  document.getElementById("detectionLogs").appendChild(row);
-  const cell=row.querySelector(`#ic-${data.frame_number}`);
-  if(data.image_path){
-    const img=document.createElement("img");
-    img.src=`http://localhost:5000/${data.image_path}`;img.width=90;img.height=70;
-    img.style.cssText="cursor:pointer;border-radius:6px;border:2px solid var(--border);transition:transform .2s";
-    img.onmouseenter=()=>img.style.transform="scale(1.05)";
-    img.onmouseleave=()=>img.style.transform="scale(1)";
-    img.onclick=()=>openModal(img.src);cell.appendChild(img);
-  }else{cell.innerHTML='<span style="color:var(--text-muted);font-size:.8rem">—</span>';}
+// ============================================================
+// State helpers
+// ============================================================
+function setLoadingState(loading) {
+  submitUrlBtn.disabled = loading;
+  submitUrlBtn.innerHTML = loading
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Menghubungkan...'
+    : '<svg viewBox="0 0 24 24" stroke-width="2.5" fill="none" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg> Mulai Deteksi';
 }
 
-function showToast(msg){
-  document.getElementById("violationMessage").textContent=msg;
-  const t=document.getElementById("violationToast");t.classList.add("show");
-  setTimeout(()=>t.classList.remove("show"),6000);
+function onStreamStarted(url) {
+  streamActive = true;
+  setLoadingState(false);
+
+  // Tampilkan MJPEG stream
+  videoPlaceholder.style.display = 'none';
+  videoFrame.src = '/video_feed?t=' + Date.now();
+  videoFrame.style.display = 'block';
+
+  // Update status
+  statusDot.className = 'status-dot connecting';
+  statusText.textContent = 'Menghubungkan ke stream...';
+
+  // Tampilkan/sembunyikan tombol
+  stopBtn.style.display = '';
+  exportCsvBtn.style.display = '';
+  submitUrlBtn.style.display = 'none';
 }
-function hideToast(){document.getElementById("violationToast").classList.remove("show");}
-function openModal(src){document.getElementById("modalImage").src=src;document.getElementById("imageModal").classList.add("show");}
-function closeImageModal(){document.getElementById("imageModal").classList.remove("show");}
+
+function onStreamStopped() {
+  streamActive = false;
+
+  videoFrame.src = '';
+  videoFrame.style.display = 'none';
+  videoPlaceholder.style.display = 'flex';
+
+  statusDot.className = 'status-dot';
+  statusText.textContent = 'Stream dihentikan.';
+  fpsBadge.textContent = '— fps';
+
+  stopBtn.style.display = 'none';
+  submitUrlBtn.style.display = '';
+}
+
+function fillUrl(prefix) {
+  streamingUrlInput.value = prefix;
+  streamingUrlInput.focus();
+}
+
+// ============================================================
+// Socket.IO events
+// ============================================================
+socket.on('connect', () => {
+  console.log('[Socket] Terhubung ke server:', socket.id);
+});
+
+socket.on('disconnect', () => {
+  console.warn('[Socket] Terputus dari server.');
+  if (streamActive) {
+    statusDot.className = 'status-dot error';
+    statusText.textContent = 'Koneksi terputus...';
+  }
+});
+
+socket.on('video_done', d => {
+  console.log('[Stream done]', d.message);
+  onStreamStopped();
+  showToast(d.message || 'Stream selesai.');
+});
+
+socket.on('stream_error', d => {
+  console.error('[Stream error]', d.message);
+  onStreamStopped();
+  showToast('Error: ' + d.message, 'error');
+});
+
+socket.on('violation_alert', d => {
+  showToast(`🚨 Pelanggaran: ${d.object_name} (${(d.confidence*100).toFixed(1)}%)`);
+  addLog(d);
+});
+
+// ============================================================
+// Performance Metrics via SocketIO
+// ============================================================
+socket.on('stream_metrics', metrics => {
+  if (!streamActive) return;
+
+  // Update status dot
+  if (metrics.status === 'active') {
+    statusDot.className = 'status-dot active';
+    statusText.textContent = 'Stream aktif';
+  } else if (metrics.status === 'connecting' || metrics.status === 'reconnecting') {
+    statusDot.className = 'status-dot connecting';
+    statusText.textContent = metrics.status === 'reconnecting' ? 'Reconnecting...' : 'Menghubungkan...';
+  }
+
+  const fps      = metrics.fps_actual   || 0;
+  const inf      = metrics.inference_ms  || 0;
+  const cpu      = metrics.cpu_percent   || 0;
+  const ram      = metrics.ram_mb        || 0;
+  const gpu      = metrics.gpu_percent   || 0;
+  const frames   = metrics.frame_number  || 0;
+  const uptime   = metrics.uptime_seconds || 0;
+  const dets     = metrics.detections_count || 0;
+
+  // FPS Badge di header video
+  fpsBadge.textContent = fps.toFixed(1) + ' fps';
+
+  // Uptime
+  uptimeBadge.textContent = formatUptime(uptime);
+
+  // Update perf cards
+  setPerfCard('fps',  fps.toFixed(1),  Math.min(fps / 30 * 100, 100),        fps < 1 ? 'danger' : fps < 5 ? 'warn' : '');
+  setPerfCard('inf',  inf.toFixed(0),  Math.min(inf / 2000 * 100, 100),       inf > 1000 ? 'danger' : inf > 500 ? 'warn' : '');
+  setPerfCard('cpu',  cpu.toFixed(0),  cpu,                                   cpu > 90 ? 'danger' : cpu > 75 ? 'warn' : '');
+  setPerfCard('ram',  Math.round(ram), Math.min(ram / 8192 * 100, 100),       ram > 6000 ? 'danger' : ram > 4000 ? 'warn' : '');
+  setPerfCard('gpu',  gpu > 0 ? gpu.toFixed(0) : 'N/A', gpu,                 gpu > 90 ? 'danger' : gpu > 75 ? 'warn' : '');
+  setPerfCard('frm',  frames,          0,                                     '');
+
+  detCountBadge.textContent = dets + ' deteksi';
+});
+
+function setPerfCard(key, value, pct, level) {
+  const valEl  = document.getElementById(`pm-${key}`);
+  const barEl  = document.getElementById(`pb-${key}`);
+  const cardEl = document.getElementById(`pc-${key}`);
+  if (valEl) valEl.textContent = value;
+  if (barEl) {
+    barEl.style.width = pct + '%';
+    barEl.style.background = level === 'danger' ? 'var(--danger)' : level === 'warn' ? 'var(--warning)' : 'var(--success)';
+  }
+  if (cardEl) {
+    cardEl.className = 'perf-card' + (level ? ' ' + level : '');
+  }
+}
+
+function formatUptime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [h,m,s].map(v => String(v).padStart(2,'0')).join(':');
+}
+
+// ============================================================
+// Detection Log Table
+// ============================================================
+function addLog(data) {
+  if (emptyState) emptyState.style.display = 'none';
+  detectionCount++;
+  detCountBadge.textContent = detectionCount + ' deteksi';
+
+  const row = document.createElement('tr');
+  const conf = data.confidence ? (data.confidence * 100).toFixed(1) + '%' : 'N/A';
+  const tid  = data.tracking_id ?? '—';
+
+  row.innerHTML = `
+    <td><span class="badge badge-blue">${data.frame_time || 'N/A'}</span></td>
+    <td>${data.frame_number || 'N/A'}</td>
+    <td><strong>${data.object_name || 'Unknown'}</strong></td>
+    <td><span class="badge badge-green">${conf}</span></td>
+    <td><span class="badge" style="background:#f1f5f9;color:var(--text)">${tid}</span></td>
+    <td id="img-${Date.now()}"></td>
+  `;
+
+  document.getElementById('detectionLogs').prepend(row);
+
+  // Gambar pelanggaran
+  const imgCell = row.lastElementChild;
+  if (data.image_path) {
+    const img = document.createElement('img');
+    // Path bisa absolute URL atau relative path (/violations/xxx.jpg)
+    img.src = data.image_path.startsWith('http') ? data.image_path : data.image_path;
+    img.width = 90; img.height = 70;
+    img.style.cssText = 'cursor:pointer;border-radius:6px;border:2px solid var(--border);transition:transform .2s;object-fit:cover';
+    img.onmouseenter = () => img.style.transform = 'scale(1.05)';
+    img.onmouseleave = () => img.style.transform = 'scale(1)';
+    img.onclick = () => openModal(img.src);
+    imgCell.appendChild(img);
+  } else {
+    imgCell.innerHTML = '<span style="color:var(--text-muted);font-size:.8rem">—</span>';
+  }
+}
+
+// ============================================================
+// Toast
+// ============================================================
+function showToast(msg, type = 'violation') {
+  document.getElementById('violationMessage').textContent = msg;
+  const t = document.getElementById('violationToast');
+  t.style.borderLeftColor = type === 'error' ? 'var(--warning)' : 'var(--danger)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 7000);
+}
+function hideToast() { document.getElementById('violationToast').classList.remove('show'); }
+
+// ============================================================
+// Image Modal
+// ============================================================
+function openModal(src) {
+  document.getElementById('modalImage').src = src;
+  document.getElementById('imageModal').classList.add('show');
+}
+function closeImageModal() { document.getElementById('imageModal').classList.remove('show'); }
+
+// ============================================================
+// Export Excel (Detection Logs)
+// ============================================================
+function exportToExcel() {
+  const table = document.querySelector('.logs-table');
+  const rows = Array.from(table.rows).map(r => Array.from(r.cells).map(c => c.innerText));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Detection Logs');
+  XLSX.writeFile(wb, `stream_detection_logs_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ============================================================
+// Export Performance CSV
+// ============================================================
+function exportPerfCSV() {
+  window.open('/api/stream_metrics/export', '_blank');
+}
+
+// ============================================================
+// Responsive: collapse 2-column grid on mobile
+// ============================================================
+function updateLayout() {
+  const grid = document.getElementById('main-grid');
+  if (window.innerWidth < 900) {
+    grid.style.gridTemplateColumns = '1fr';
+  } else {
+    grid.style.gridTemplateColumns = '1fr 340px';
+  }
+}
+window.addEventListener('resize', updateLayout);
+updateLayout();
 </script>
 </body>
 </html>

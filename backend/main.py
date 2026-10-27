@@ -1,9 +1,10 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_socketio import SocketIO
 from flask_cors import CORS
 import cv2
 import os
 from datetime import datetime
+from pathlib import Path
 import time
 import base64
 import threading
@@ -12,12 +13,16 @@ import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision import transforms
 from deep_sort_realtime.deepsort_tracker import DeepSort
-from supabase import create_client, Client
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
+from db_adapter import get_db_adapter
+from stream_manager import StreamManager
+from perf_logger import PerfLogger
 
-# Load environment variables dari file .env
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables dari file .env di root proyek
+load_dotenv(BASE_DIR / '.env')
 
 # pip install deep-sort-realtime supabase python-dotenv
 
@@ -33,8 +38,8 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Folder configurations
-UPLOAD_FOLDER = 'uploads'
-VIOLATION_FOLDER = 'violations'
+UPLOAD_FOLDER = str(BASE_DIR / 'uploads')
+VIOLATION_FOLDER = str(BASE_DIR / 'violations')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(VIOLATION_FOLDER, exist_ok=True)
 
@@ -56,7 +61,8 @@ def get_model(num_classes):
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
     return model
 
-MODEL_PATH = 'best_model (16).pth'
+# Model lama tersedia di models/legacy/best_model_16.pth
+MODEL_PATH = str(BASE_DIR / 'models' / 'best_model-gabungan6.pth')
 num_classes = len(custom_classes) 
 model = get_model(num_classes)
 
@@ -72,36 +78,38 @@ model.eval()
 # Tracker diinisialisasi di dalam fungsi proses video agar ter-reset tiap video
 
 # ==========================================
-# DATABASE CONFIG (SUPABASE)
+# DATABASE CONFIG (FLEXIBLE: SUPABASE / POSTGRESQL)
 # ==========================================
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
-if not SUPABASE_URL or not SUPABASE_KEY:
-    print("WARNING: SUPABASE_URL atau SUPABASE_KEY belum diset di .env!")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Pemilihan database dikontrol oleh variabel DB_PROVIDER di file .env:
+#   DB_PROVIDER=supabase    -> menggunakan Supabase (default)
+#   DB_PROVIDER=postgresql  -> menggunakan PostgreSQL self-hosted
+try:
+    db = get_db_adapter()
+except Exception as e:
+    print(f"[DB] FATAL: Gagal menginisialisasi database adapter — {e}")
+    db = None
 
 def save_detection_to_db(frame_time, frame_number, confidence, detected_objects, frame, image_filename):
-    # Simpan gambar sementara ke lokal
+    # Simpan gambar sementara ke lokal (selalu, sebagai fallback)
     local_image_path = os.path.join(VIOLATION_FOLDER, image_filename)
     cv2.imwrite(local_image_path, frame)
-    
-    # Default to local URL
+
+    # Default ke URL lokal
     used_image_url = f"/violations/{image_filename}"
+
+    if db is None:
+        print("[DB] WARNING: Database adapter tidak tersedia. Data tidak disimpan ke DB.")
+        return used_image_url
 
     try:
         today_str = datetime.now().strftime("%Y-%m-%d")
-        full_timestamp_str = f"{today_str} {frame_time}" 
-        
-        # Upload ke Supabase Storage (bucket "violations")
-        print(f"Uploading image to Supabase Storage: {image_filename}")
-        with open(local_image_path, "rb") as f:
-            supabase.storage.from_("violations").upload(image_filename, f, {"content-type": "image/jpeg"})
-        
-        # Dapatkan URL publik dari gambar tersebut
-        public_image_url = supabase.storage.from_("violations").get_public_url(image_filename)
+        full_timestamp_str = f"{today_str} {frame_time}"
+
+        # Upload gambar via adapter (Supabase Storage atau lokal, tergantung provider)
+        print(f"[DB] Menyimpan gambar: {image_filename}")
+        used_image_url = db.upload_image(image_filename, local_image_path)
 
         for obj in detected_objects:
-            # Simpan log ke Supabase Tabel "detections"
             data = {
                 "frame_time": full_timestamp_str,
                 "frame_number": frame_number,
@@ -109,32 +117,46 @@ def save_detection_to_db(frame_time, frame_number, confidence, detected_objects,
                 "confidence": obj['confidence'],
                 "tracking_id": obj.get('tracking_id', None),
                 "timestamp": datetime.now().isoformat(),
-                "image_path": public_image_url
+                "image_path": used_image_url
             }
-            supabase.table("detections").insert(data).execute()
-        
-        # Jika berhasil, gunakan public URL
-        used_image_url = public_image_url
+            db.insert_detection(data)
 
     except Exception as e:
-        print(f"Offline / Error saving to Supabase: {e}. Menggunakan penyimpanan lokal untuk frontend.")
-        
+        print(f"[DB] Error menyimpan ke database: {e}. Menggunakan penyimpanan lokal untuk frontend.")
+        used_image_url = f"/violations/{image_filename}"
+
     return used_image_url
 
 @app.route('/')
 def index():
-    return send_from_directory('templates', 'index.html')
+    return send_from_directory(str(BASE_DIR / 'templates'), 'index.html')
 
 @app.route('/url')
 def url_page():
-    return send_from_directory('templates', 'url.html')
+    return send_from_directory(str(BASE_DIR / 'templates'), 'url.html')
 
-# State Global
+@app.route('/history')
+def history_page():
+    return send_from_directory(str(BASE_DIR / 'templates'), 'history.html')
+
+# State Global (untuk upload video)
 violators_logged = set()
 last_detection_time = {}
 state_lock = threading.Lock()
-stop_event = threading.Event()  # Untuk menghentikan proses deteksi
-current_thread = None  # Referensi ke thread deteksi aktif
+stop_event = threading.Event()  # Untuk menghentikan proses deteksi video upload
+current_thread = None  # Referensi ke thread deteksi upload video aktif
+
+# ==========================================
+# STREAM MANAGER (untuk live stream RTSP/HTTP)
+# ==========================================
+stream_manager = StreamManager(
+    model=model,
+    device=device,
+    custom_classes=custom_classes,
+    socketio=socketio,
+    save_detection_cb=save_detection_to_db
+)
+perf_logger = PerfLogger(interval_seconds=1.0)
 
 def process_video_logic(cap, source_name="video"):
     global violators_logged, last_detection_time
@@ -208,7 +230,7 @@ def process_video_logic(cap, source_name="video"):
             score = scores[i]
             label_id = labels[i]
             
-            if score < 0.5: continue 
+            if score < 0.6: continue 
 
             if label_id >= len(custom_classes): continue
             class_name = custom_classes[label_id]
@@ -231,71 +253,69 @@ def process_video_logic(cap, source_name="video"):
         tracks = tracker.update_tracks(detections_for_tracker, frame=frame)
         current_ids = set()
 
-        for track in tracks:
-            if not track.is_confirmed():
-                continue
-            
+        # --- PASS 1: Gambar SEMUA bbox ke frame utama (live preview) ---
+        confirmed_tracks = [t for t in tracks if t.is_confirmed()]
+        for track in confirmed_tracks:
             tracking_id = track.track_id
             ltrb = track.to_ltrb()
             x1, y1, x2, y2 = map(int, ltrb)
             object_name = track.get_det_class()
-            confidence = track.get_det_conf() 
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame, f"{object_name} ID:{tracking_id}", (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        # --- PASS 2: Kumpulkan pelanggaran baru dalam frame ini ---
+        # Buat satu frame gabungan dengan SEMUA bbox untuk disimpan ke DB
+        new_violations = []   # list of (tracking_id, object_name, confidence)
+        for track in confirmed_tracks:
+            tracking_id = track.track_id
+            object_name = track.get_det_class()
+            confidence  = track.get_det_conf()
             if confidence is None: confidence = 0.0
 
-            # 1. Buat copy frame khusus untuk log (agar hanya berisi kotak untuk objek ini saja)
-            log_frame = frame.copy()
-            cv2.rectangle(log_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(log_frame, f"{object_name} ID:{tracking_id}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            current_ids.add(tracking_id)
 
-            # Gambar juga di frame utama untuk keperluan Live Preview
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(frame, f"{object_name} ID:{tracking_id}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-            # Cek duplikat waktu (agar tidak spam)
+            # Cek cooldown (5 detik)
             if tracking_id in last_detection_time:
-                 if current_time - last_detection_time[tracking_id] < 5:
-                     # Karena sudah digambar di atas, kita tinggal continue
-                     continue
-            
-            # Cek apakah ID ini sudah disimpan ke database?
+                if current_time - last_detection_time[tracking_id] < 5:
+                    continue
+
+            # Cek apakah sudah pernah dilog
             if tracking_id in violators_logged:
                 print(f"[DEBUG] Tracking ID {tracking_id} sudah dilog. Skip DB.")
-            else:
-                # 2. SIMPAN KE DB SETELAH DIGAMBAR
-                # Gunakan 'log_frame' yang hanya ada 1 kotak hijau untuk disimpan
-                tracking_id_str = str(tracking_id)
-                generated_filename = f"violation_{frame_number}_{tracking_id_str}_{int(time.time())}.jpg"
-                
-                used_image_url = save_detection_to_db(
-                    frame_time=frame_time_str,
-                    frame_number=frame_number,
-                    confidence=float(confidence),
-                    detected_objects=[{
-                        'name': object_name,
-                        'confidence': float(confidence),
-                        'tracking_id': tracking_id
-                    }],
-                    frame=log_frame,  # <--- Frame ini HANYA ada kotak untuk objek ini
-                    image_filename=generated_filename 
-                )
-                violators_logged.add(tracking_id)
-                
-                # Kirim notifikasi ke Web (dengan public URL Supabase atau fallback lokal)
+                last_detection_time[tracking_id] = current_time
+                continue
+
+            new_violations.append((tracking_id, object_name, float(confidence)))
+            last_detection_time[tracking_id] = current_time
+
+        # --- PASS 3: Simpan SATU gambar gabungan jika ada pelanggaran baru ---
+        if new_violations:
+            # Frame ini sudah berisi SEMUA bbox dari Pass 1
+            combined_filename = f"violation_{frame_number}_{int(time.time())}.jpg"
+            detected_objects = [
+                {'name': name, 'confidence': conf, 'tracking_id': tid}
+                for tid, name, conf in new_violations
+            ]
+            used_image_url = save_detection_to_db(
+                frame_time=frame_time_str,
+                frame_number=frame_number,
+                confidence=max(conf for _, _, conf in new_violations),
+                detected_objects=detected_objects,
+                frame=frame,  # <--- Satu frame berisi SEMUA bbox
+                image_filename=combined_filename
+            )
+            for tid, name, conf in new_violations:
+                violators_logged.add(tid)
                 socketio.emit('violation_alert', {
                     'message': 'Pelanggaran terdeteksi!',
                     'frame_time': frame_time_str,
                     'frame_number': frame_number,
-                    'object_name': object_name,
-                    'tracking_id': tracking_id,
-                    'confidence': float(confidence),
+                    'object_name': name,
+                    'tracking_id': tid,
+                    'confidence': conf,
                     'image_path': used_image_url
                 })
-
-            last_detection_time[tracking_id] = current_time
-            current_ids.add(tracking_id)
-
-            # cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            # cv2.putText(frame, f"{object_name} ID:{tracking_id}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
         # Handle Lost Objects (Objek yang keluar dari kamera)
         missing_ids = active_ids - current_ids
@@ -309,19 +329,19 @@ def process_video_logic(cap, source_name="video"):
             })
             
             # (Opsional) Simpan ke DB kalau objek hilang
-            lost_filename = f"lost_{frame_number}_{tracking_id}_{int(time.time())}.jpg"
-            save_detection_to_db(
-                frame_time=frame_time_str,
-                frame_number=frame_number,
-                confidence=0.0,
-                detected_objects=[{
-                    'name': 'lost_object',
-                    'confidence': 0.0,
-                    'tracking_id': tracking_id
-                }],
-                frame=frame,
-                image_filename=lost_filename
-            )
+            # lost_filename = f"lost_{frame_number}_{tracking_id}_{int(time.time())}.jpg"
+            # save_detection_to_db(
+            #     frame_time=frame_time_str,
+            #     frame_number=frame_number,
+            #     confidence=0.0,
+            #     detected_objects=[{
+            #         'name': 'lost_object',
+            #         'confidence': 0.0,
+            #         'tracking_id': tracking_id
+            #     }],
+            #     frame=frame,
+            #     image_filename=lost_filename
+            # )
         
         active_ids = current_ids
 
@@ -390,77 +410,128 @@ def upload_video():
 
 
 # ==========================================
-# STREAM URL DETECTION (Faster R-CNN)
+# STREAM URL DETECTION (via StreamManager)
 # ==========================================
-def open_stream(url, retries=5, delay=5):
-    """Mencoba membuka stream URL dengan retry mechanism."""
-    for i in range(retries):
-        cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
-        if cap.isOpened():
-            print("[INFO] Stream berhasil dibuka.")
-            return cap
-        print(f"[INFO] Retry {i+1}/{retries}: Stream gagal, mencoba lagi dalam {delay} detik...")
-        time.sleep(delay)
-    print("[ERROR] Stream gagal dibuka setelah beberapa kali percobaan.")
-    return None
-
-def process_stream_thread(stream_url, max_duration=600):
-    """Proses stream URL menggunakan Faster R-CNN. max_duration default = 10 menit."""
-    start_time = time.time()
-
-    while not stop_event.is_set():
-        if time.time() - start_time > max_duration:
-            print("[INFO] Durasi maksimal stream tercapai. Menghentikan proses.")
-            break
-
-        cap = open_stream(stream_url)
-        if not cap:
-            print("[INFO] Gagal membuka stream, menunggu 10 detik sebelum mencoba lagi...")
-            time.sleep(10)
-            continue
-
-        # Gunakan logic yang sama dengan process_video_logic
-        process_video_logic(cap, source_name="stream")
-
-        if not stop_event.is_set():
-            print("[INFO] Stream terputus, mencoba reconnect...")
-            time.sleep(5)
-
-    socketio.emit('video_done', {'message': 'Proses stream selesai.'})
-
 
 @app.route('/detect_from_stream', methods=['POST'])
 def detect_from_stream():
+    """Mulai deteksi dari live stream RTSP/HTTP menggunakan StreamManager."""
     data = request.get_json()
     stream_url = data.get("stream_url") if data else None
 
     if not stream_url:
         return jsonify({"error": "No stream URL provided"}), 400
 
-    # Hentikan proses deteksi sebelumnya jika ada
-    global current_thread
-    stop_event.set()
-    if current_thread and current_thread.is_alive():
-        current_thread.join(timeout=5)
-    stop_event.clear()
+    # Hentikan stream sebelumnya jika ada
+    if stream_manager.is_running():
+        perf_logger.stop()
+        stream_manager.stop()
 
-    global violators_logged, last_detection_time
-    with state_lock:
-        violators_logged = set()
-        last_detection_time = {}
+    # Mulai stream baru + performance logging
+    stream_manager.start(stream_url)
+    perf_logger.start(metrics_fn=stream_manager.get_metrics)
 
-    thread = threading.Thread(target=process_stream_thread, args=(stream_url,))
-    thread.start()
-    current_thread = thread
+    return jsonify({
+        "message": "Live stream dimulai dengan Faster R-CNN",
+        "stream_url": stream_url
+    })
 
-    return jsonify({"message": "Processing live stream with Faster R-CNN", "stream_url": stream_url})
+
+@app.route('/stop_stream', methods=['POST'])
+def stop_stream():
+    """Hentikan live stream yang sedang berjalan."""
+    if stream_manager.is_running():
+        perf_logger.stop()
+        stream_manager.stop()
+        socketio.emit('video_done', {'message': 'Stream dihentikan oleh user.'})
+        return jsonify({"message": "Stream berhasil dihentikan."})
+    return jsonify({"message": "Tidak ada stream aktif."})
+
+
+@app.route('/stream_status', methods=['GET'])
+def stream_status():
+    """Return status dan metrik stream yang sedang aktif."""
+    metrics = stream_manager.get_metrics()
+    metrics["is_running"] = stream_manager.is_running()
+    log_path = perf_logger.get_log_path()
+    metrics["log_file"] = log_path.name if log_path else None
+    return jsonify(metrics)
+
+
+@app.route('/video_feed')
+def video_feed():
+    """
+    MJPEG stream endpoint.
+    Lebih efisien dari base64 via SocketIO untuk live preview.
+    Frontend: <img src="/video_feed">
+    """
+    def generate():
+        while True:
+            frame_bytes = stream_manager.get_latest_frame_bytes()
+            if frame_bytes is None:
+                # Kirim placeholder kecil jika belum ada frame
+                time.sleep(0.1)
+                continue
+            yield (
+                b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n\r\n'
+                + frame_bytes +
+                b'\r\n'
+            )
+            time.sleep(0.033)  # ~30 fps max untuk MJPEG feed
+
+    return Response(
+        generate(),
+        mimetype='multipart/x-mixed-replace; boundary=frame'
+    )
 
 
 @app.route('/stop_detection', methods=['POST'])
 def stop_detection():
-    """Endpoint untuk menghentikan proses deteksi yang sedang berjalan."""
+    """Hentikan deteksi video upload yang sedang berjalan."""
     stop_event.set()
-    return jsonify({"message": "Proses deteksi dihentikan."})
+    return jsonify({"message": "Proses deteksi video dihentikan."})
+
+
+# ==========================================
+# API: PERFORMANCE LOG (untuk riset)
+# ==========================================
+@app.route('/api/stream_metrics/logs', methods=['GET'])
+def list_perf_logs():
+    """Daftar semua file log performa CSV yang tersedia."""
+    logs = perf_logger.list_logs()
+    return jsonify({"logs": logs, "count": len(logs)})
+
+
+@app.route('/api/stream_metrics/export', methods=['GET'])
+def export_perf_log():
+    """Download file log CSV performa stream (file terbaru / berdasarkan filename)."""
+    filename = request.args.get('filename')
+    if filename:
+        # Sanitasi: pastikan hanya ambil file dari folder logs/
+        safe_name = os.path.basename(filename)
+        log_path = os.path.join(str(BASE_DIR / 'logs'), safe_name)
+    else:
+        # Default: file terbaru
+        current_log = perf_logger.get_log_path()
+        if current_log is None:
+            # Cari file terbaru dari folder
+            logs = perf_logger.list_logs()
+            if not logs:
+                return jsonify({"error": "Belum ada file log performa."}), 404
+            log_path = logs[0]['path']
+        else:
+            log_path = str(current_log)
+
+    if not os.path.exists(log_path):
+        return jsonify({"error": f"File log tidak ditemukan: {log_path}"}), 404
+
+    return send_from_directory(
+        directory=os.path.dirname(os.path.abspath(log_path)),
+        path=os.path.basename(log_path),
+        as_attachment=True,
+        mimetype='text/csv'
+    )
 
 
 # ==========================================
@@ -468,28 +539,25 @@ def stop_detection():
 # ==========================================
 @app.route('/api/detections', methods=['GET'])
 def get_detections():
-    """Ambil riwayat deteksi dari Supabase dengan pagination."""
+    """Ambil riwayat deteksi dari database (Supabase atau PostgreSQL) dengan pagination."""
+    if db is None:
+        return jsonify({"error": "Database adapter tidak tersedia."}), 503
     try:
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 20))
         object_filter = request.args.get('object_name', None)
         date_filter = request.args.get('date', None)
 
-        offset = (page - 1) * per_page
-
-        query = supabase.table("detections").select("*", count="exact").order("timestamp", desc=True)
-
-        if object_filter:
-            query = query.eq("object_name", object_filter)
-        if date_filter:
-            query = query.gte("timestamp", f"{date_filter}T00:00:00").lte("timestamp", f"{date_filter}T23:59:59")
-
-        query = query.range(offset, offset + per_page - 1)
-        result = query.execute()
+        data, count = db.get_detections(
+            page=page,
+            per_page=per_page,
+            object_filter=object_filter,
+            date_filter=date_filter,
+        )
 
         return jsonify({
-            "data": result.data,
-            "count": result.count,
+            "data": data,
+            "count": count,
             "page": page,
             "per_page": per_page
         })
@@ -500,12 +568,13 @@ def get_detections():
 
 @app.route('/api/detections/stats', methods=['GET'])
 def get_detection_stats():
-    """Ambil statistik deteksi untuk dashboard."""
+    """Ambil statistik deteksi untuk dashboard (Supabase atau PostgreSQL)."""
+    if db is None:
+        return jsonify({"error": "Database adapter tidak tersedia."}), 503
     try:
-        result = supabase.table("detections").select("*").neq("object_name", "lost_object").execute()
-        detections = result.data
+        detections = db.get_all_detections_stats()
 
-        # Hitung per jenis
+        # Hitung per jenis pelanggaran
         stats = {}
         for det in detections:
             name = det.get("object_name", "unknown")

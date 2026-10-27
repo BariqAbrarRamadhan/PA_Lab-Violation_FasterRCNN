@@ -8,3 +8,7 @@ deep-sort-realtime
 supabase
 python-dotenv
 werkzeug
+psycopg2-binary
+psutil              # CPU & RAM monitoring untuk analisis beban server
+# pynvml            # GPU monitoring (opsional) — install jika server punya GPU NVIDIA:
+#                   # pip install pynvml

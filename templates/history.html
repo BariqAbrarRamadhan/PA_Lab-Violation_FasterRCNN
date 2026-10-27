@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Riwayat Deteksi - SafeVision Lab</title>
+<link rel="icon" href="/static/R.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* (Salin style umum dari index/url.html) */
+:root {
+  --primary: #0ea5e9;
+  --primary-dark: #0284c7;
+  --primary-light: #e0f2fe;
+  --success: #10b981;
+  --danger: #ef4444;
+  --bg: #f0f4f8;
+  --surface: #ffffff;
+  --surface2: #f8fafc;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --sidebar-bg: #0f172a;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+.topbar{background:var(--sidebar-bg);color:#fff;padding:0 2rem;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar-brand{display:flex;align-items:center;gap:.75rem;font-weight:700;font-size:1.1rem}
+.brand-icon{width:36px;height:36px;background:var(--primary);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center}
+.brand-icon svg{width:20px;height:20px;stroke:#fff;fill:none}
+.topbar-nav{display:flex;gap:.25rem}
+.nav-pill{padding:.5rem 1.25rem;border-radius:50px;font-size:.9rem;font-weight:500;text-decoration:none;color:#94a3b8;transition:all .2s;border:1px solid transparent}
+.nav-pill:hover{color:#fff;background:rgba(255,255,255,.08)}
+.nav-pill.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.main{flex:1;padding:2rem;max-width:1200px;margin:0 auto;width:100%}
+.card{background:var(--surface);border-radius:var(--r-xl);border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden}
+.card-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:1rem;font-weight:600;display:flex;align-items:center;gap:.6rem}
+.card-title svg{width:18px;height:18px;stroke:var(--primary);fill:none}
+table{width:100%;border-collapse:collapse}
+th{padding:.875rem 1.25rem;text-align:left;font-size:.78rem;font-weight:600;text-transform:uppercase;color:var(--text-muted);background:var(--surface2);border-bottom:2px solid var(--border)}
+td{padding:.875rem 1.25rem;border-bottom:1px solid var(--border);font-size:.875rem}
+tbody tr:hover td{background:var(--surface2)}
+.badge{padding:.2rem .65rem;border-radius:50px;font-size:.75rem;font-weight:600}
+.badge-blue{background:var(--primary-light);color:var(--primary-dark)}
+.badge-green{background:#d1fae5;color:#065f46}
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.5rem 1rem;border:none;border-radius:var(--r-md);font-size:.85rem;font-weight:600;cursor:pointer;background:var(--primary);color:#fff}
+.btn-outline{background:transparent;color:var(--text-muted);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn:disabled{opacity:0.5;cursor:not-allowed;}
+.pagination{display:flex;justify-content:center;align-items:center;padding:1rem;gap:1rem}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:2000;backdrop-filter:blur(4px)}
+.modal-overlay.show{display:flex}
+.modal-box{background:var(--surface);border-radius:var(--r-xl);max-width:90vw;max-height:90vh;overflow:auto;padding:1.5rem}
+.modal-box img{max-width:100%;height:auto;border-radius:var(--r-md)}
+.modal-actions{margin-top:1rem;text-align:right}
+
+.filters { padding: 1.5rem; display: flex; gap: 1rem; background: var(--surface2); border-bottom: 1px solid var(--border); }
+.filter-input { padding: .5rem; border: 1px solid var(--border); border-radius: var(--r-md); font-family: inherit; font-size: .9rem; outline: none; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></div>
+    SafeVision Lab
+  </div>
+  <nav class="topbar-nav">
+    <a href="/" class="nav-pill">Upload Video</a>
+    <a href="/url" class="nav-pill">Stream URL</a>
+    <a href="/history" class="nav-pill active">Riwayat</a>
+  </nav>
+</div>
+
+<main class="main">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">
+        <svg viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Riwayat Pelanggaran
+      </span>
+      <button onclick="exportToExcel()" class="btn" style="background:var(--success)">Export Excel</button>
+    </div>
+    
+    <div class="filters">
+      <input type="date" id="dateFilter" class="filter-input" onchange="loadData(1)" title="Filter by Date"/>
+      <select id="typeFilter" class="filter-input" onchange="loadData(1)">
+        <option value="">Semua Pelanggaran</option>
+        <option value="playing game phone">Playing Game Phone</option>
+        <option value="sleep">Sleep</option>
+        <option value="eating">Eating</option>
+      </select>
+    </div>
+
+    <div style="overflow-x:auto">
+      <table id="historyTable">
+        <thead>
+          <tr>
+            <th>Waktu (Timestamp)</th>
+            <th>Frame #</th>
+            <th>Pelanggaran</th>
+            <th>Confidence</th>
+            <th>Bukti Gambar</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+          <tr><td colspan="5" style="text-align:center;padding:2rem">Memuat data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <button class="btn btn-outline" id="prevBtn" onclick="changePage(-1)">Sebelumnya</button>
+      <span id="pageInfo" style="font-size:.9rem;font-weight:500">Hal. 1</span>
+      <button class="btn btn-outline" id="nextBtn" onclick="changePage(1)">Selanjutnya</button>
+    </div>
+  </div>
+</main>
+
+<div id="imageModal" class="modal-overlay" onclick="if(event.target===this)closeImageModal()">
+  <div class="modal-box">
+    <img id="modalImage" src=""/>
+    <div class="modal-actions">
+      <button onclick="closeImageModal()" class="btn" style="background:var(--danger)">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentPage = 1;
+const perPage = 20;
+
+function loadData(page) {
+  currentPage = page;
+  const dateStr = document.getElementById('dateFilter').value;
+  const typeStr = document.getElementById('typeFilter').value;
+  
+  let url = `/api/detections?page=${page}&per_page=${perPage}`;
+  if(dateStr) url += `&date=${dateStr}`;
+  if(typeStr) url += `&object_name=${encodeURIComponent(typeStr)}`;
+
+  fetch(url)
+    .then(r => r.json())
+    .then(res => {
+      renderTable(res.data);
+      const maxPage = Math.ceil((res.count||0)/perPage) || 1;
+      document.getElementById('pageInfo').textContent = `Hal. ${page} dari ${maxPage}`;
+      document.getElementById('prevBtn').disabled = page <= 1;
+      document.getElementById('nextBtn').disabled = page >= maxPage;
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById('historyBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:red">Gagal memuat data</td></tr>';
+    });
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('historyBody');
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:3rem;color:#64748b">Tidak ada data ditemukan.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(row => {
+    let d = new Date(row.timestamp);
+    let timeStr = d.toLocaleString('id-ID', {dateStyle:'medium', timeStyle:'medium'});
+    let conf = (row.confidence * 100).toFixed(1) + '%';
+    
+    let imgSrc = row.image_path;
+    if (imgSrc && !imgSrc.startsWith('http')) {
+        imgSrc = imgSrc.startsWith('/') ? imgSrc : '/' + imgSrc;
+    }
+    
+    let imgHtml = imgSrc 
+      ? `<img src="${imgSrc}" width="90" style="border-radius:6px;cursor:pointer;object-fit:cover" onclick="openModal(this.src)"/>`
+      : '-';
+
+    return `<tr>
+      <td><span class="badge badge-blue">${timeStr}</span></td>
+      <td>${row.frame_number}</td>
+      <td><strong>${row.object_name}</strong></td>
+      <td><span class="badge badge-green">${conf}</span></td>
+      <td>${imgHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+function changePage(dir) {
+  loadData(currentPage + dir);
+}
+
+function openModal(src) {
+  document.getElementById('modalImage').src = src;
+  document.getElementById('imageModal').classList.add('show');
+}
+function closeImageModal() {
+  document.getElementById('imageModal').classList.remove('show');
+}
+
+function exportToExcel() {
+  fetch('/api/detections?page=1&per_page=10000')
+    .then(r => r.json())
+    .then(res => {
+      const data = res.data.map(d => ({
+        'Timestamp': d.timestamp,
+        'Waktu Frame': d.frame_time,
+        'Frame #': d.frame_number,
+        'Objek': d.object_name,
+        'Confidence': d.confidence,
+        'Image': d.image_path
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "History");
+      XLSX.writeFile(wb, `riwayat_pelanggaran_${new Date().toISOString().slice(0,10)}.xlsx`);
+    });
+}
+
+// Initial load
+loadData(1);
+</script>
+</body>
+</html>
