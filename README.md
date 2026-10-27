@@ -24,7 +24,6 @@ Data deteksi serta foto pelanggaran akan disimpan secara otomatis ke **Supabase 
 ├── notebooks/          # Notebook eksperimen dan training
 ├── docs/               # Dokumen desain dan catatan
 ├── tests/              # Tes API Flask
-├── archive/            # File lama/eksperimental yang tidak dipakai runtime
 ├── uploads/            # Video unggahan sementara (runtime)
 ├── violations/         # Foto bukti pelanggaran lokal (runtime)
 ├── logs/               # Log performa CSV (runtime)
@@ -317,6 +316,3 @@ Digunakan untuk melihat, memfilter, dan memeriksa log pelanggaran yang telah lal
 | `backend/perf_logger.py`    | Logger performa ke CSV untuk analisis beban server        |
 | `backend/db_adapter.py`     | Database abstraction layer (Supabase / PostgreSQL)        |
 | `logs/`                     | Direktori file CSV log performa stream                    |
-
-> `archive/` berisi file eksperimental lama (backend YOLO, template lama,
-> notebook error, dan salinan lockfile). Tidak dipakai oleh aplikasi.
