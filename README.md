@@ -22,7 +22,6 @@ Data deteksi serta foto pelanggaran akan disimpan secara otomatis ke **Supabase 
 │   ├── legacy/                    # checkpoint lama
 │   └── yolo/                      # bobot YOLOv8 pembanding
 ├── notebooks/          # Notebook eksperimen dan training
-├── docs/               # Dokumen desain dan catatan
 ├── tests/              # Tes API Flask
 ├── uploads/            # Video unggahan sementara (runtime)
 ├── violations/         # Foto bukti pelanggaran lokal (runtime)
