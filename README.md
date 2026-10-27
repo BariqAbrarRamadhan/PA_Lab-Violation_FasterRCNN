@@ -247,7 +247,7 @@ klik Export Excel untuk mengunduh halaman riwayat yang sedang tampil.
 | GET    | `/stream_status`                  | Status dan metrik stream aktif                      |
 | GET    | `/api/stream_metrics/logs`        | Daftar file log performa CSV                        |
 | GET    | `/api/stream_metrics/export`      | Unduh CSV performa (parameter `filename`, opsional) |
-| GET    | `/api/detections`                 | Riwayat deteksi (`page`, `per_page`, `object_name`, `date`) |
+| GET    | `/api/detections`                 | Riwayat deteksi (`page`, `per_page` default 15, `object_name`, `date`) |
 | GET    | `/api/detections/stats`           | Statistik untuk dashboard                           |
 | GET    | `/violations/<filename>`          | File gambar bukti pelanggaran                       |
 

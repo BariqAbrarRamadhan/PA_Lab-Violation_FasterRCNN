@@ -544,7 +544,7 @@ def get_detections():
         return jsonify({"error": "Database adapter tidak tersedia."}), 503
     try:
         page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 20))
+        per_page = int(request.args.get('per_page', 15))
         object_filter = request.args.get('object_name', None)
         date_filter = request.args.get('date', None)
 

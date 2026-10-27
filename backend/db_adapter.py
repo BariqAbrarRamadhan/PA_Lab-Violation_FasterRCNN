@@ -45,7 +45,7 @@ class DatabaseAdapter(abc.ABC):
     def get_detections(
         self,
         page: int = 1,
-        per_page: int = 20,
+        per_page: int = 15,
         object_filter: Optional[str] = None,
         date_filter: Optional[str] = None,
     ) -> tuple:
@@ -109,7 +109,7 @@ class SupabaseAdapter(DatabaseAdapter):
     def get_detections(
         self,
         page: int = 1,
-        per_page: int = 20,
+        per_page: int = 15,
         object_filter: Optional[str] = None,
         date_filter: Optional[str] = None,
     ) -> tuple:
@@ -226,7 +226,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
     def get_detections(
         self,
         page: int = 1,
-        per_page: int = 20,
+        per_page: int = 15,
         object_filter: Optional[str] = None,
         date_filter: Optional[str] = None,
     ) -> tuple:
